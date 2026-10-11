@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Kindle 时钟</title>
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #fff;
+    color: #000;
+    font-family: Arial, "Microsoft YaHei", sans-serif;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #clock {
+    width: 100%;
+    padding: 16px;
+    text-align: center;
+  }
+
+  #date {
+    font-size: 0.30em;
+    line-height: 1.5;
+    margin-bottom: 0.3em;
+  }
+
+  #weekday {
+    font-size: 0.30em;
+    line-height: 1.5;
+    margin-bottom: 0.4em;
+  }
+
+  #lunar {
+    font-size: 0.30em;
+    line-height: 1.6;
+    margin-bottom: 0.5em;
+  }
+
+  #time {
+    font-size: 1em;
+    font-weight: bold;
+    line-height: 1.2;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #message {
+    font-size: 0.30em;
+    line-height: 1.5;
+    margin-top: 0.7em;
+    overflow-wrap: anywhere;
+  }
+
+  /* r=90：旋转为横向布局 */
+  body.rotate #clock {
+    position: absolute;
+    width: 100vh;
+    height: 100vw;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px;
+  }
+</style>
+</head>
+
+<body>
+<div id="clock">
+  <div id="date"></div>
+  <div id="weekday"></div>
+  <div id="lunar">农历日期加载中……</div>
+  <div id="time">00:00:00</div>
+  <div id="message"></div>
+</div>
+
+<!-- 请确保 lunar.js 与 index.html 位于同一目录 -->
+<script src="./lunar.js"></script>
+
+<script>
+(function () {
+  "use strict";
+
+  const params = new URLSearchParams(location.search);
+
+  // 1. 字体大小：默认 7，最大 30
+  const requestedSize = Number(params.get("fs"));
+  const fontSize =
+    Number.isFinite(requestedSize) && requestedSize > 0
+      ? Math.min(requestedSize, 30)
+      : 7;
+
+  document.documentElement.style.fontSize = fontSize + "vw";
+
+  // 2. 语言：默认中文，l=en 为英文
+  const lang = params.get("l") === "en" ? "en" : "zh";
+
+  document.documentElement.lang =
+    lang === "en" ? "en" : "zh-CN";
+
+  // 3. 自定义文字
+  const message = params.has("msg")
+    ? params.get("msg")
+    : "爱小海罗TT^_^每一天";
+
+  document.getElementById("message").textContent = message;
+
+  // 4. 横屏旋转
+  if (params.get("r") === "90") {
+    document.body.classList.add("rotate");
+  }
+
+  const dateEl = document.getElementById("date");
+  const weekdayEl = document.getElementById("weekday");
+  const lunarEl = document.getElementById("lunar");
+  const timeEl = document.getElementById("time");
+
+  const weekdaysZh = [
+    "星期日", "星期一", "星期二", "星期三",
+    "星期四", "星期五", "星期六"
+  ];
+
+  const weekdaysEn = [
+    "Sunday", "Monday", "Tuesday", "Wednesday",
+    "Thursday", "Friday", "Saturday"
+  ];
+
+  const monthsEn = [
+    "January", "February", "March", "April",
+    "May", "June", "July", "August",
+    "September", "October", "November", "December"
+  ];
+
+  // 数字补零：3 -> 03
+  function pad(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  // 更新公历、农历和时间
+  function updateClock() {
+    const now = new Date();
+
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const weekday = now.getDay();
+
+    // 公历日期
+    if (lang === "en") {
+      dateEl.textContent =
+        monthsEn[now.getMonth()] + " " +
+        day + ", " + year;
+      weekdayEl.textContent = weekdaysEn[weekday];
+    } else {
+      dateEl.textContent =
+        year + "年" +
+        pad(month) + "月" +
+        pad(day) + "日";
+      weekdayEl.textContent = weekdaysZh[weekday];
+    }
+
+    // 中国农历：使用本地 lunar.js 计算
+    try {
+      if (typeof Lunar === "undefined") {
+        throw new Error("lunar.js 未加载");
+      }
+
+      const lunar = Lunar.fromDate(now);
+
+      const lunarMonth = lunar.getMonthInChinese();
+      const lunarDay = lunar.getDayInChinese();
+      const ganzhi = lunar.getYearInGanZhi();
+      const zodiac = lunar.getYearShengXiao();
+
+      if (lang === "en") {
+        // 英文界面保留中国传统农历名称
+        lunarEl.textContent =
+          "Chinese Lunar: " +
+          lunarMonth + "月" + lunarDay +
+          " · " + ganzhi + "年 · " + zodiac + "年";
+      } else {
+        lunarEl.textContent =
+          "农历" + lunarMonth + "月" + lunarDay +
+          " · " + ganzhi + "年 · " + zodiac + "年";
+      }
+    } catch (error) {
+      lunarEl.textContent =
+        lang === "en"
+          ? "Lunar date unavailable"
+          : "农历暂时无法显示";
+    }
+
+    // 时间始终使用两位数字
+    timeEl.textContent =
+      pad(now.getHours()) + ":" +
+      pad(now.getMinutes()) + ":" +
+      pad(now.getSeconds());
+  }
+
+  // 立即显示，然后每秒更新
+  updateClock();
+  setInterval(updateClock, 1000);
+})();
+</script>
+</body>
+</html>
